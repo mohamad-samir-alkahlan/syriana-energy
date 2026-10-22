@@ -535,6 +535,8 @@
     "not_linked": "Not linked",
     "tg_text": "Link your account to the Telegram bot to get alerts instantly.",
     "tg_linked": "Linked with: {chat}",
+    "tg_unlink": "Unlink",
+    "tg_unlinked": "Chat unlinked",
     "tg_link": "Link Telegram",
     "tg_relink": "Link another chat",
     "tg_link_ready": "Link is ready",

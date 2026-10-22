@@ -18,19 +18,18 @@ from app.models import Tenant
 log = logging.getLogger(__name__)
 
 
-async def is_safe_url(url: str) -> bool:
-    """SSRF guard: only http(s) to public addresses (unless ALLOW_PRIVATE_URLS)."""
+async def _safe_ips(url: str) -> list[ipaddress.IPv4Address | ipaddress.IPv6Address] | None:
+    """Resolve the URL's host once; None unless every address is public (or ALLOW_PRIVATE_URLS)."""
     try:
         u = urlparse(url)
     except ValueError:
-        return False
+        return None
     if u.scheme not in ("http", "https") or not u.hostname:
-        return False
-    if settings.allow_private_urls:
-        return True
+        return None
     host = u.hostname
-    if host.lower() in ("localhost",) or host.lower().endswith((".local", ".internal", ".localhost")):
-        return False
+    if not settings.allow_private_urls and (
+            host.lower() in ("localhost",) or host.lower().endswith((".local", ".internal", ".localhost"))):
+        return None
     try:
         ips = [ipaddress.ip_address(host)]
     except ValueError:
@@ -38,8 +37,37 @@ async def is_safe_url(url: str) -> bool:
             infos = await asyncio.get_running_loop().getaddrinfo(host, None, type=socket.SOCK_STREAM)
             ips = [ipaddress.ip_address(i[4][0]) for i in infos]
         except (OSError, ValueError):
-            return False
-    return bool(ips) and all(ip.is_global for ip in ips)
+            return None if not settings.allow_private_urls else []
+    if settings.allow_private_urls:
+        return ips
+    return ips if ips and all(ip.is_global for ip in ips) else None
+
+
+async def is_safe_url(url: str) -> bool:
+    """SSRF guard: only http(s) to public addresses (unless ALLOW_PRIVATE_URLS)."""
+    return await _safe_ips(url) is not None
+
+
+async def safe_request(method: str, url: str, timeout: float, **kw: Any) -> httpx.Response:
+    """Send to the address that passed the SSRF check (no second DNS lookup, so no DNS rebinding).
+    The original host still goes in the Host header and TLS SNI/certificate check."""
+    ips = await _safe_ips(url)
+    if ips is None:
+        raise ValueError("URL is not allowed")
+    u = urlparse(url)
+    ext: dict[str, Any] = {}
+    target = url
+    if ips:
+        ip = ips[0]
+        hostport = f"[{ip}]" if ip.version == 6 else str(ip)
+        if u.port:
+            hostport += f":{u.port}"
+        target = u._replace(netloc=hostport).geturl()
+        kw["headers"] = {**kw.get("headers", {}), "Host": u.netloc.rsplit("@", 1)[-1]}
+        if u.scheme == "https":
+            ext["sni_hostname"] = u.hostname
+    async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as c:
+        return await c.request(method, target, extensions=ext, **kw)
 
 
 class Transports:
@@ -80,25 +108,21 @@ class Transports:
             return False
 
     async def webhook(self, url: str, payload: dict[str, Any]) -> bool:
-        if not await is_safe_url(url):
+        try:
+            r = await safe_request("POST", url, 10, json=payload)
+            return r.status_code < 400
+        except ValueError:
             log.warning("blocked unsafe webhook url %s", url)
             return False
-        try:
-            async with httpx.AsyncClient(timeout=10, follow_redirects=False) as c:
-                r = await c.post(url, json=payload)
-            return r.status_code < 400
         except httpx.HTTPError as e:
             log.warning("webhook error: %s", e)
             return False
 
     async def http_action(self, method: str, url: str, body: Any) -> bool:
-        if not await is_safe_url(url):
-            raise ValueError("URL is not allowed")
-        async with httpx.AsyncClient(timeout=8, follow_redirects=False) as c:
-            kw: dict[str, Any] = {}
-            if body is not None and method != "GET":
-                kw["json" if isinstance(body, (dict, list)) else "content"] = body
-            r = await c.request(method, url, **kw)
+        kw: dict[str, Any] = {}
+        if body is not None and method != "GET":
+            kw["json" if isinstance(body, (dict, list)) else "content"] = body
+        r = await safe_request(method, url, 8, **kw)
         if r.status_code >= 400:
             raise ValueError(f"HTTP {r.status_code}")
         return True

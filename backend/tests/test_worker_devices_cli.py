@@ -110,13 +110,15 @@ async def test_retention_purge_follows_plan(client):
     async with SessionLocal() as s:
         from app.services.readings import store_reading
         for d in (fdev, pdev):
-            await store_reading(s, uuid.UUID(d["id"]), now - timedelta(days=30), {"pv_power": 1.0}, {})
+            await store_reading(s, uuid.UUID(d["id"]), now - timedelta(days=40), {"pv_power": 1.0}, {})
+            await store_reading(s, uuid.UUID(d["id"]), now - timedelta(days=30), {"pv_power": 1.5}, {})
             await store_reading(s, uuid.UUID(d["id"]), now - timedelta(days=3), {"pv_power": 2.0}, {})
         await s.commit()
     async with SessionLocal() as s:
         n = await purge_readings(s, now)
         await s.commit()
-    assert n == 1  # only the free tenant's 30 day old row (free keeps 7 days, home keeps 365)
+    # only the free tenant's 40 day old row: free keeps 7 days + 30 grace days (late renewals), home keeps 365
+    assert n == 1
     await other.aclose()
 
 

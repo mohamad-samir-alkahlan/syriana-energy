@@ -45,7 +45,8 @@ async def role_in_tenant(db: AsyncSession, user: User, tenant: Tenant) -> str | 
         return m.role
     if tenant.parent_id:  # installer owners/admins act inside their customers' tenants
         pm = await db.get(Membership, (user.id, tenant.parent_id))
-        if pm and pm.role in ("owner", "admin"):
+        parent = await db.get(Tenant, tenant.parent_id)
+        if pm and pm.role in ("owner", "admin") and parent is not None and not parent.suspended:
             return "admin"
     if user.is_superadmin:
         return "owner"

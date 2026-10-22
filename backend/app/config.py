@@ -44,6 +44,11 @@ class Settings(BaseSettings):
     # header set by the edge proxy with the real client IP (e.g. cf-connecting-ip behind Cloudflare).
     # empty => use the direct peer address; X-Forwarded-For is never trusted (client-spoofable).
     client_ip_header: str = ""
+    # hosts a tenant may never claim as custom_domain (the PUBLIC_BASE_URL host is always reserved)
+    reserved_domains: str = ""
+    assistant_hourly_limit: int = 30  # AI chat requests per tenant per hour
+    assistant_daily_limit: int = 200  # AI chat requests per tenant per day
+    retention_grace_days: int = 30  # keep readings this long past the plan window (late renewals)
 
     @field_validator("jwt_secret")
     @classmethod

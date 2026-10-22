@@ -269,6 +269,19 @@ function Notifications() {
           <span className="inline-flex items-center gap-2"><Icon name="send" size={16} className="text-blue" />{t("telegram")}</span>
         </CardTitle>
         <p className="mb-3 text-sm text-muted">{linked ? t("tg_linked", { chat: ch.data?.telegram.chat_title || "—" }) : t("tg_text")}</p>
+        {writable && linked && (ch.data?.telegram.chats?.length ?? 0) > 0 && (
+          <ul className="mb-3 divide-y divide-line rounded-xl border border-line text-sm">
+            {ch.data?.telegram.chats?.map((c) => (
+              <li key={c.id} className="flex items-center justify-between gap-2 px-3 py-2">
+                <span className="truncate">{c.title || c.id}</span>
+                <button className="text-xs text-red" disabled={busy === `unlink:${c.id}`}
+                  onClick={() => run(`unlink:${c.id}`, async () => ch.mutate(await api.telegramUnlink(c.id), false), t("tg_unlinked"))}>
+                  {t("tg_unlink")}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
         {link && !linked && (
           <div className="mb-3 space-y-2 rounded-xl border border-line bg-bg2 p-3 text-sm">
             <a href={link.deep_link} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-lg bg-[#2a9ad8] px-4 py-2 font-medium text-white">

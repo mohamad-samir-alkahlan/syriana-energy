@@ -13,6 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import clock
+from app.cache import limiter
 from app.config import VERSION, settings
 from app.db import get_db
 from app.deps import Principal, current_principal, get_scoped, parse_uuid, require_feature, require_superadmin
@@ -68,6 +69,14 @@ async def chat(body: ChatIn, p: Principal = Depends(require_feature("ai")), db: 
         raise err(422, "validation_error", "The last message must be from the user")
     if not settings.anthropic_api_key:
         raise err(503, "ai_unavailable")
+    if sum(len(m.content) for m in body.messages) > 40_000:
+        raise err(422, "validation_error", "Conversation is too long; start a new one")
+    tid = p.tenant.id
+    if (await limiter.count(f"ai-h:{tid}") >= settings.assistant_hourly_limit
+            or await limiter.count(f"ai-d:{tid}") >= settings.assistant_daily_limit):
+        raise err(429, "rate_limited")
+    await limiter.incr(f"ai-h:{tid}", 3600)
+    await limiter.incr(f"ai-d:{tid}", 86400)
     if body.device_id:
         await get_scoped(db, Device, body.device_id, p.tenant.id)
     locale = p.user.locale if p.user else "ar"

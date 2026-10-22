@@ -18,10 +18,17 @@ router = APIRouter(prefix="/api/automations", tags=["automations"])
 WRITERS = ("owner", "admin")
 
 
-def auto_out(a: Automation) -> dict:
+def _redact(actions: list | None) -> list:
+    """Viewers see that an http action exists, not its URL/body (often holding tokens)."""
+    return [{k: v for k, v in x.items() if k not in ("url", "body")} if isinstance(x, dict) and x.get("type") == "http"
+            else x for x in actions or []]
+
+
+def auto_out(a: Automation, full: bool = True) -> dict:
+    acts, racts = (a.actions or [], a.recover_actions or []) if full else (_redact(a.actions), _redact(a.recover_actions))
     return {"id": str(a.id), "name": a.name, "enabled": a.enabled, "device_id": str(a.device_id) if a.device_id else None,
-            "conditions": a.conditions or [], "grid": a.grid, "actions": a.actions or [],
-            "recover_conditions": a.recover_conditions or [], "recover_actions": a.recover_actions or [],
+            "conditions": a.conditions or [], "grid": a.grid, "actions": acts,
+            "recover_conditions": a.recover_conditions or [], "recover_actions": racts,
             "state": a.state, "last_triggered_at": dv.iso(a.last_triggered_at)}
 
 
@@ -63,7 +70,7 @@ async def _check_device(db: AsyncSession, p: Principal, device_id: str | None):
 @router.get("")
 async def list_automations(p: Principal = Depends(require_feature("automations")), db: AsyncSession = Depends(get_db, scope="function")):
     rows = (await db.execute(select(Automation).where(Automation.tenant_id == p.tenant.id).order_by(Automation.created_at))).scalars()
-    return [auto_out(a) for a in rows]
+    return [auto_out(a, p.role in WRITERS) for a in rows]
 
 
 @router.post("", status_code=201)
@@ -83,7 +90,7 @@ async def create_automation(body: AutoIn, p: Principal = Depends(require_feature
 
 @router.get("/{aid}")
 async def get_automation(aid: str, p: Principal = Depends(require_feature("automations")), db: AsyncSession = Depends(get_db, scope="function")):
-    return auto_out(await get_scoped(db, Automation, aid, p.tenant.id))
+    return auto_out(await get_scoped(db, Automation, aid, p.tenant.id), p.role in WRITERS)
 
 
 @router.patch("/{aid}")

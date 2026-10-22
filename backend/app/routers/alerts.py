@@ -134,13 +134,15 @@ async def read_one(aid: str, p: Principal = Depends(current_principal), db: Asyn
 
 
 # ------------------------------------------------------------------ channels
-def channels_out(t) -> dict:
+def channels_out(t, full: bool = True) -> dict:
+    """full=False (viewers) hides the webhook URL, which often carries a token."""
     chats = t.telegram_chats or []
     em, wh = t.email_channel or {}, t.webhook_channel or {}
     return {"telegram": {"linked": bool(chats), "chat_title": ", ".join(c.get("title", "") for c in chats) or None,
-                         "chats": [{"title": c.get("title"), "linked_at": c.get("linked_at")} for c in chats]},
+                         "chats": [{"id": str(c.get("chat_id")), "title": c.get("title"), "linked_at": c.get("linked_at")}
+                                   for c in chats]},
             "email": {"enabled": bool(em.get("enabled")), "address": em.get("address")},
-            "webhook": {"enabled": bool(wh.get("enabled")), "url": wh.get("url")}}
+            "webhook": {"enabled": bool(wh.get("enabled")), "url": wh.get("url") if full else None}}
 
 
 class EmailCh(BaseModel):
@@ -160,7 +162,7 @@ class ChannelsPatch(BaseModel):
 
 @router.get("/channels")
 async def get_channels(p: Principal = Depends(current_principal)):
-    return channels_out(p.tenant)
+    return channels_out(p.tenant, p.role in WRITERS)
 
 
 @router.patch("/channels")
@@ -200,6 +202,20 @@ async def telegram_link(p: Principal = Depends(require_roles(*WRITERS)), db: Asy
     code = await telegram.create_link_code(db, p.tenant.id, p.user.id if p.user else None)
     bot = settings.telegram_bot_username
     return {"code": code, "bot_username": bot, "deep_link": f"https://t.me/{bot}?start={code}"}
+
+
+@router.delete("/channels/telegram/{chat_id}")
+async def telegram_unlink(chat_id: str, p: Principal = Depends(require_roles(*WRITERS)),
+                          db: AsyncSession = Depends(get_db, scope="function")):
+    t = p.tenant
+    chats = list(t.telegram_chats or [])
+    keep = [c for c in chats if str(c.get("chat_id")) != chat_id]
+    if len(keep) == len(chats):
+        raise err(404, "not_found")
+    t.telegram_chats = keep
+    await control.audit(db, control.Actor(t.id, p.user.id if p.user else None, p.actor_name, "rest"), "telegram.unlink", chat_id)
+    await db.flush()
+    return channels_out(t)
 
 
 class TestIn(BaseModel):

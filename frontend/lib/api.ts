@@ -218,7 +218,7 @@ export interface Page<T> {
 }
 
 export interface ChannelsState {
-  telegram: { linked: boolean; chat_title: string | null };
+  telegram: { linked: boolean; chat_title: string | null; chats?: { id: string; title: string | null; linked_at: string | null }[] };
   email: { enabled: boolean; address: string | null };
   webhook: { enabled: boolean; url: string | null };
 }
@@ -441,6 +441,8 @@ export const api = {
     request<{ code: string; bot_username: string; deep_link: string }>("/channels/telegram/link", { method: "POST" }),
   updateChannels: (b: { email?: { enabled: boolean; address: string }; webhook?: { enabled: boolean; url: string } }) =>
     request<ChannelsState>("/channels", j(b, "PATCH")),
+  telegramUnlink: (chatId: string) =>
+    request<ChannelsState>(`/channels/telegram/${encodeURIComponent(chatId)}`, { method: "DELETE" }),
   testChannel: (channel: string) => request<unknown>("/channels/test", j({ channel })),
 
   automations: () => request<Automation[] | Page<Automation>>("/automations"),

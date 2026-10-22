@@ -11,6 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import clock
+from app.config import settings
 from app.db import get_db
 from app.deps import (Principal, current_principal, get_scoped, parse_uuid, require_feature, require_roles,
                       require_user_roles, user_only)
@@ -55,6 +56,14 @@ async def patch_tenant(body: TenantPatch, p: Principal = Depends(require_roles("
     return await tenant_out(db, p.tenant)
 
 
+def _reserved_domain(dom: str) -> bool:
+    from urllib.parse import urlsplit
+    reserved = {h.strip().lower() for h in settings.reserved_domains.split(",") if h.strip()}
+    if base := (urlsplit(settings.public_base_url).hostname or "").lower():
+        reserved.add(base)
+    return any(dom == r or dom.endswith("." + r) for r in reserved)
+
+
 @router.patch("/tenant/branding")
 async def patch_branding(body: BrandingPatch, p: Principal = Depends(require_roles("owner", "admin")),
                          db: AsyncSession = Depends(get_db, scope="function")):
@@ -84,6 +93,8 @@ async def patch_branding(body: BrandingPatch, p: Principal = Depends(require_rol
         dom = (data["custom_domain"] or "").strip().lower() or None
         if dom and not DOMAIN.match(dom):
             raise err(422, "validation_error", "custom_domain is not a valid hostname")
+        if dom and _reserved_domain(dom):
+            raise err(422, "validation_error", "custom_domain is reserved")
         t.custom_domain = dom
     t.branding = brand
     try:

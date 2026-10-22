@@ -49,7 +49,7 @@ async def purge_readings(db, now: datetime) -> int:
     total = 0
     tenants = (await db.execute(select(Tenant))).scalars().all()
     for t in tenants:
-        days = (await effective_plan(db, t)).history_days
+        days = (await effective_plan(db, t)).history_days + settings.retention_grace_days
         ids = select(Device.id).where(Device.tenant_id == t.id)
         res = await db.execute(delete(Reading).where(Reading.device_id.in_(ids), Reading.ts < now - timedelta(days=days)))
         total += res.rowcount or 0

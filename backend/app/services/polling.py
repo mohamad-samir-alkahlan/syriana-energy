@@ -74,4 +74,5 @@ async def refresh_online_flags(db: AsyncSession, now: datetime | None = None) ->
 
 
 async def due_devices(db: AsyncSession) -> list[tuple[uuid.UUID, str]]:
-    return [(r[0], r[1]) for r in (await db.execute(select(Device.id, Device.driver))).all()]
+    q = select(Device.id, Device.driver).join(Tenant, Tenant.id == Device.tenant_id).where(Tenant.suspended.is_(False))
+    return [(r[0], r[1]) for r in (await db.execute(q)).all()]
