@@ -159,11 +159,15 @@ async def login(body: LoginIn, request: Request, response: Response, db: AsyncSe
         raise err(401, "invalid_credentials")
     if user.totp_enabled:
         if not body.totp_code:
-            await limiter.reset(key)
-            await limiter.reset(user_key)
             raise err(401, "totp_required")
+        # wrong codes count per account and survive until a fully successful login (no reset via totp_required)
+        totp_key = f"totp-fail:{user.id}"
+        if await limiter.count(totp_key) >= lim:
+            raise err(429, "rate_limited")
         if not user.totp_secret_enc or not verify_totp(decrypt_str(user.totp_secret_enc), body.totp_code):
+            await limiter.incr(totp_key, 900)
             raise err(401, "invalid_totp")
+        await limiter.reset(totp_key)
     await limiter.reset(key)
     await limiter.reset(user_key)
     m = (await db.execute(select(Tenant, Membership.role).join(Membership, Membership.tenant_id == Tenant.id)

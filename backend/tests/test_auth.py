@@ -122,3 +122,17 @@ async def test_unauthenticated_and_garbage_cookie(client):
 async def test_health_and_docs(client):
     assert (await client.get("/api/health")).json()["ok"] is True
     assert (await client.get("/api/docs")).status_code == 200
+
+
+async def test_totp_failures_survive_password_only_requests(client):
+    import pyotp
+    await register(client, "tb@example.com")
+    secret = (await client.post("/api/auth/totp/setup")).json()["secret"]
+    assert (await client.post("/api/auth/totp/enable", json={"code": pyotp.TOTP(secret).now()})).status_code == 200
+    c = make_client()
+    creds = {"email": "tb@example.com", "password": "password123"}
+    for _ in range(8):
+        assert (await c.post("/api/auth/login", json=creds)).status_code in (401, 429)  # totp_required must not reset
+        assert (await c.post("/api/auth/login", json={**creds, "totp_code": "000000"})).status_code in (401, 429)
+    r = await c.post("/api/auth/login", json={**creds, "totp_code": pyotp.TOTP(secret).now()})
+    assert r.status_code == 429
