@@ -1,0 +1,16 @@
+# Devbox override: serve the frontend on https://energy.syriana.dev through the shared traefik
+# (Cloudflare tunnel -> traefik -> frontend). No host port is published.
+#   docker compose -f docker-compose.yml -f docker-compose.devbox.yml up -d --build
+# DNS + Cloudflare Access are created once with syriana-devbox/tools/add-app.sh energy.
+services:
+  frontend:
+    ports: !reset []
+    networks: [default, web]
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.syriana-energy.rule=Host(`energy.syriana.dev`)
+      - traefik.http.services.syriana-energy.loadbalancer.server.port=3000
+
+networks:
+  web:
+    external: true

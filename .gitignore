@@ -9,3 +9,4 @@ __pycache__/
 .pytest_cache/
 probe*.json
 e2e/screens/
+.admin-credentials
