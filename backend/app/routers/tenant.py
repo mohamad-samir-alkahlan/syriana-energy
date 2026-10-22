@@ -12,7 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import clock
 from app.db import get_db
-from app.deps import Principal, current_principal, get_scoped, parse_uuid, require_feature, require_roles
+from app.deps import (Principal, current_principal, get_scoped, parse_uuid, require_feature, require_roles,
+                      require_user_roles, user_only)
 from app.errors import err
 from app.models import Device, Membership, Tenant, User
 from app.security import hash_password
@@ -156,6 +157,7 @@ async def create_customer(body: CustomerIn, p: Principal = Depends(require_featu
 async def delete_customer(cid: str, p: Principal = Depends(require_feature("customers", ("owner", "admin"))),
                           db: AsyncSession = Depends(get_db, scope="function")):
     _installer_only(p)
+    user_only(p)  # deleting a customer with its users is too destructive for an API key
     child = await get_scoped(db, Tenant, cid, p.tenant.id, col="parent_id")
     member_ids = [r[0] for r in (await db.execute(select(Membership.user_id).where(Membership.tenant_id == child.id)))]
     for uid in member_ids:  # users that belong only to this customer go away with it
@@ -199,7 +201,7 @@ async def list_users(p: Principal = Depends(current_principal), db: AsyncSession
 
 
 @router.post("/users", status_code=201)
-async def add_user(body: UserIn, p: Principal = Depends(require_roles("owner", "admin")), db: AsyncSession = Depends(get_db, scope="function")):
+async def add_user(body: UserIn, p: Principal = Depends(require_user_roles("owner", "admin")), db: AsyncSession = Depends(get_db, scope="function")):
     if body.role == "owner" and p.role != "owner":
         raise err(403, "forbidden", "Only an owner can add another owner")
     email = body.email.lower()
@@ -223,7 +225,7 @@ async def _member(db: AsyncSession, tenant_id, uid: str) -> tuple[User, Membersh
 
 
 @router.patch("/users/{uid}")
-async def patch_user(uid: str, body: RolePatch, p: Principal = Depends(require_roles("owner", "admin")),
+async def patch_user(uid: str, body: RolePatch, p: Principal = Depends(require_user_roles("owner", "admin")),
                      db: AsyncSession = Depends(get_db, scope="function")):
     u, m = await _member(db, p.tenant.id, uid)
     if (body.role == "owner" or m.role == "owner") and p.role != "owner":
@@ -236,7 +238,7 @@ async def patch_user(uid: str, body: RolePatch, p: Principal = Depends(require_r
 
 
 @router.delete("/users/{uid}", status_code=204)
-async def delete_user(uid: str, p: Principal = Depends(require_roles("owner", "admin")), db: AsyncSession = Depends(get_db, scope="function")):
+async def delete_user(uid: str, p: Principal = Depends(require_user_roles("owner", "admin")), db: AsyncSession = Depends(get_db, scope="function")):
     u, m = await _member(db, p.tenant.id, uid)
     if p.user and u.id == p.user.id:
         raise err(400, "bad_request", "You cannot remove yourself")

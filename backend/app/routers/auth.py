@@ -55,9 +55,10 @@ class PatchMeIn(BaseModel):
 
 
 def client_ip(request: Request) -> str:
-    xff = request.headers.get("x-forwarded-for")
-    if xff:
-        return xff.split(",")[0].strip()
+    if settings.client_ip_header:
+        v = request.headers.get(settings.client_ip_header)
+        if v:
+            return v.split(",")[0].strip()
     return request.client.host if request.client else "unknown"
 
 
@@ -110,20 +111,22 @@ async def register(body: RegisterIn, request: Request, response: Response, db: A
 async def login(body: LoginIn, request: Request, response: Response, db: AsyncSession = Depends(get_db, scope="function")):
     ip = client_ip(request)
     email = body.email.lower()
-    key, ip_key = f"login:{ip}:{email}", f"login-ip:{ip}"
-    if await limiter.count(key) >= settings.login_rate_limit or await limiter.count(ip_key) >= settings.login_rate_limit * 5:
+    key, ip_key, user_key = f"login:{ip}:{email}", f"login-ip:{ip}", f"login-user:{email}"
+    if (await limiter.count(key) >= settings.login_rate_limit or await limiter.count(ip_key) >= settings.login_rate_limit * 5
+            or await limiter.count(user_key) >= settings.login_rate_limit * 3):
         raise err(429, "rate_limited")
     user = (await db.execute(select(User).where(User.email == email))).scalar_one_or_none()
     ok = await verify_password_async(user.password_hash if user else DUMMY_HASH, body.password)
     if not user or not ok:
-        await limiter.incr(key, settings.login_rate_window)
-        await limiter.incr(ip_key, settings.login_rate_window)
+        for k in (key, ip_key, user_key):
+            await limiter.incr(k, settings.login_rate_window)
         raise err(401, "invalid_credentials")
     if user.totp_enabled:
         if not body.totp_code:
             raise err(401, "totp_required")
         if not user.totp_secret_enc or not verify_totp(decrypt_str(user.totp_secret_enc), body.totp_code):
-            await limiter.incr(key, settings.login_rate_window)
+            for k in (key, ip_key, user_key):
+                await limiter.incr(k, settings.login_rate_window)
             raise err(401, "invalid_totp")
     await limiter.reset(key)
     m = (await db.execute(select(Tenant, Membership.role).join(Membership, Membership.tenant_id == Tenant.id)

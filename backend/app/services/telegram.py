@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import html
 import logging
 import secrets
 from datetime import timedelta
@@ -54,7 +55,7 @@ async def status_text(db: AsyncSession, tenant: Tenant, lang: str) -> str:
         online = dv.is_online(d)
         grid = m.get("grid_available")
         if lang == "ar":
-            parts = [f"<b>{d.name}</b> - " + ("متصل" if online else "غير متصل")]
+            parts = [f"<b>{html.escape(d.name)}</b> - " + ("متصل" if online else "غير متصل")]
             if m.get("battery_soc") is not None:
                 parts.append(f"البطارية: {m['battery_soc']:.0f}%")
             if m.get("pv_power") is not None:
@@ -64,7 +65,7 @@ async def status_text(db: AsyncSession, tenant: Tenant, lang: str) -> str:
             if grid is not None:
                 parts.append("الدولة: " + ("موجودة" if grid else "مقطوعة"))
         else:
-            parts = [f"<b>{d.name}</b> - " + ("online" if online else "offline")]
+            parts = [f"<b>{html.escape(d.name)}</b> - " + ("online" if online else "offline")]
             if m.get("battery_soc") is not None:
                 parts.append(f"Battery: {m['battery_soc']:.0f}%")
             if m.get("pv_power") is not None:

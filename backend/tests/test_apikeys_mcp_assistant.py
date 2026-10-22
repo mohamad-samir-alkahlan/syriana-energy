@@ -38,8 +38,12 @@ async def test_api_key_lifecycle(client):
     assert (await m.get(f"/api/devices/{dev['id']}/live", headers=h)).json()["metrics"]
     assert (await m.get("/api/devices", headers={"Authorization": "Bearer se_live_wrong"})).status_code == 401
     assert (await m.get("/api/devices", headers={"Authorization": "Bearer abc"})).status_code == 401
-    # keys cannot mint more keys
+    # keys cannot mint more keys, nor create or change users
     assert (await m.post("/api/api-keys", json={"name": "x"}, headers=h)).status_code == 403
+    r = await m.post("/api/users", headers=h, json={"email": "evil@example.com", "name": "x", "role": "admin",
+                                                     "password": "password123"})
+    assert r.status_code == 403
+    assert (await m.delete(f"/api/users/{me['user']['id']}", headers=h)).status_code == 403
     # control through a key is audited with the key's name
     r = await m.post(f"/api/devices/{dev['id']}/settings", headers=h, json={"key": "buzzer", "value": False, "confirm": True})
     assert r.status_code == 200 and r.json()["user_name"] == "API key: grafana"

@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     register_rate_limit: int = 30  # signups per IP per hour (raise for load/E2E tests)
     login_rate_limit: int = 8  # failed logins per window
     login_rate_window: int = 300  # seconds
+    # header set by the edge proxy with the real client IP (e.g. cf-connecting-ip behind Cloudflare).
+    # empty => use the direct peer address; X-Forwarded-For is never trusted (client-spoofable).
+    client_ip_header: str = ""
 
     @field_validator("jwt_secret")
     @classmethod

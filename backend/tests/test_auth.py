@@ -48,6 +48,32 @@ async def test_login_rate_limit(client):
     assert r.status_code == 429 and r.json()["error"]["code"] == "rate_limited"
 
 
+async def test_login_rate_limit_ignores_spoofed_forwarded_for(client):
+    await register(client, "xff@example.com")
+    client.cookies.clear()
+    for i in range(8):
+        r = await client.post("/api/auth/login", json={"email": "xff@example.com", "password": "bad-password"},
+                              headers={"X-Forwarded-For": f"10.0.0.{i}"})
+        assert r.status_code == 401
+    r = await client.post("/api/auth/login", json={"email": "xff@example.com", "password": "password123"},
+                          headers={"X-Forwarded-For": "10.9.9.9"})
+    assert r.status_code == 429
+
+
+async def test_login_rate_limit_per_account_across_ips(client, monkeypatch):
+    from app.config import settings
+    monkeypatch.setattr(settings, "client_ip_header", "cf-connecting-ip")
+    await register(client, "acct@example.com")
+    client.cookies.clear()
+    for i in range(24):  # 8 per ip, 3x8 per account
+        r = await client.post("/api/auth/login", json={"email": "acct@example.com", "password": "bad-password"},
+                              headers={"cf-connecting-ip": f"10.1.{i // 8}.1"})
+        assert r.status_code == 401, i
+    r = await client.post("/api/auth/login", json={"email": "acct@example.com", "password": "password123"},
+                          headers={"cf-connecting-ip": "10.2.0.1"})
+    assert r.status_code == 429
+
+
 async def test_totp_flow(client):
     await register(client, "tf@example.com")
     s = (await client.post("/api/auth/totp/setup")).json()

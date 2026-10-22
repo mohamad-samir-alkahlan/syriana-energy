@@ -127,6 +127,13 @@ def user_only(p: Principal = Depends(current_principal)) -> Principal:
     return p
 
 
+def require_user_roles(*roles: str) -> Callable[..., Awaitable[Principal]]:
+    """Like require_roles, but refuses API keys (account management needs a signed-in user)."""
+    async def dep(p: Principal = Depends(require_roles(*roles))) -> Principal:
+        return user_only(p)
+    return dep
+
+
 def parse_uuid(v: str | uuid.UUID) -> uuid.UUID:
     if isinstance(v, uuid.UUID):
         return v
