@@ -55,7 +55,9 @@ async def poll_device(db: AsyncSession, device_id: uuid.UUID, now: datetime | No
     prev = device.last_metrics
     device.last_seen, device.last_metrics, device.last_raw = now, metrics, raw
     device.state, device.online, device.last_error = dict(ctx.state), True, None
-    await db.flush()
+    # release the device row lock before alerts/automations make network calls (telegram, smtp, webhooks),
+    # so control commands are not stuck behind slow notification channels
+    await db.commit()
 
     tenant = await db.get(Tenant, device.tenant_id)
     plan = await effective_plan(db, tenant)

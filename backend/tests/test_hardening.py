@@ -103,3 +103,77 @@ async def test_safe_request_connects_to_checked_ip(monkeypatch):
         raise AssertionError("expected ValueError")
     except ValueError:
         pass
+
+
+def _link_token(fake, to: str) -> str:
+    body = [b for (t, _, b) in fake.emails if t == to][-1]
+    return body.split("token=")[1].split()[0]
+
+
+async def test_password_reset_flow(client, clean):
+    await register(client, "reset@example.com")
+    other = make_client()
+    assert (await other.post("/api/auth/login", json={"email": "reset@example.com", "password": "password123"})).status_code == 200
+    anon = make_client()
+    assert (await anon.post("/api/auth/password/forgot", json={"email": "nobody@example.com"})).status_code == 204
+    assert (await anon.post("/api/auth/password/forgot", json={"email": "reset@example.com", "locale": "en"})).status_code == 204
+    token = _link_token(clean, "reset@example.com")
+    assert "/en/reset-password?token=" in [b for (t, _, b) in clean.emails if t == "reset@example.com"][-1]
+    assert (await anon.post("/api/auth/password/reset", json={"token": "junk", "password": "newpassword1"})).status_code == 400
+    assert (await anon.post("/api/auth/password/reset", json={"token": token, "password": "newpassword1"})).status_code == 204
+    # single use: the token is bound to the old password hash
+    assert (await anon.post("/api/auth/password/reset", json={"token": token, "password": "another-pass"})).status_code == 400
+    assert (await other.get("/api/auth/me")).status_code == 401  # every session was revoked
+    r = await anon.post("/api/auth/login", json={"email": "reset@example.com", "password": "newpassword1"})
+    assert r.status_code == 200 and r.json()["user"]["email_verified"] is True
+
+
+async def test_email_verification_and_odoo_match(client, clean):
+    me = await register(client, "verify@example.com")
+    assert me["user"]["email_verified"] is False
+    token = _link_token(clean, "verify@example.com")
+    h = {"X-Odoo-Secret": "odoo-test-secret"}
+    hook = {"email": "verify@example.com", "plan_code": "home", "expires_at": "2027-01-01T00:00:00Z", "invoice_ref": "INV/V/1"}
+    r = await client.post("/api/billing/odoo/webhook", json=hook, headers=h)
+    assert r.status_code == 404  # an unverified e-mail never receives someone's payment
+    assert (await client.post("/api/auth/verify-email", json={"token": token})).status_code == 204
+    assert (await client.get("/api/auth/me")).json()["user"]["email_verified"] is True
+    r = await client.post("/api/billing/odoo/webhook", json=hook, headers=h)
+    assert r.status_code == 200, r.text
+    # a reset token is not a verify token
+    assert (await client.post("/api/auth/verify-email", json={"token": "x.y.z"})).status_code == 400
+
+
+async def test_login_skips_suspended_first_tenant(client):
+    me = await register(client, "multi@example.com")
+    first = me["tenant"]["id"]
+    async with SessionLocal() as s:
+        from app.models import Membership, User
+        from sqlalchemy import select
+        u = (await s.execute(select(User).where(User.email == "multi@example.com"))).scalar_one()
+        t2 = Tenant(name="Second", type="home", plan_code="free")
+        s.add(t2)
+        await s.flush()
+        s.add(Membership(user_id=u.id, tenant_id=t2.id, role="owner"))
+        (await s.get(Tenant, uuid.UUID(first))).suspended = True
+        await s.commit()
+        second = str(t2.id)
+    c = make_client()
+    r = await c.post("/api/auth/login", json={"email": "multi@example.com", "password": "password123"})
+    assert r.status_code == 200 and r.json()["tenant"]["id"] == second
+    assert (await c.get("/api/auth/me")).status_code == 200
+
+
+async def test_api_keys_revoked_with_member(client):
+    me = await register(client)
+    await set_plan(me["tenant"]["id"], "home")
+    r = await client.post("/api/users", json={"email": f"k-{uuid.uuid4().hex[:6]}@example.com", "name": "K",
+                                              "role": "admin", "password": "password123"})
+    uid, email = r.json()["id"], r.json()["email"]
+    m = make_client()
+    await m.post("/api/auth/login", json={"email": email, "password": "password123"})
+    key = (await m.post("/api/api-keys", json={"name": "theirs"})).json()["key"]
+    h = {"Authorization": f"Bearer {key}"}
+    assert (await make_client().get("/api/devices", headers=h)).status_code == 200
+    assert (await client.patch(f"/api/users/{uid}", json={"role": "viewer"})).status_code == 200
+    assert (await make_client().get("/api/devices", headers=h)).status_code == 401

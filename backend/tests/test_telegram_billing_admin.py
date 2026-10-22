@@ -119,7 +119,7 @@ async def test_channel_test_endpoint(client, fake):
 
 
 # ------------------------------------------------------------------ billing
-async def test_odoo_webhook_activate_renew_idempotent(client):
+async def test_odoo_webhook_activate_renew_idempotent(client, clean):
     me = await register(client, "payer@example.com")
     tid = me["tenant"]["id"]
     h = {"X-Odoo-Secret": "odoo-test-secret"}
@@ -134,7 +134,9 @@ async def test_odoo_webhook_activate_renew_idempotent(client):
     r = await client.post("/api/billing/odoo/webhook", json={**body, "plan_code": "pro"}, headers=h)
     assert r.json() == {"ok": True, "duplicate": True}
     assert (await client.get("/api/tenant")).json()["plan"]["code"] == "home"
-    # renewal by e-mail with a new invoice and upgrade
+    # renewal by e-mail (only once the address is verified) with a new invoice and upgrade
+    token = [b for (to, _, b) in clean.emails if to == "payer@example.com"][-1].split("token=")[1].split()[0]
+    assert (await client.post("/api/auth/verify-email", json={"token": token})).status_code == 204
     r = await client.post("/api/billing/odoo/webhook", headers=h,
                           json={"email": "PAYER@example.com", "plan_code": "pro", "expires_at": "2027-01-01T00:00:00Z", "invoice_ref": "INV/2026/0002"})
     assert r.status_code == 200

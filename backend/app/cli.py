@@ -28,7 +28,8 @@ async def create_superadmin(email: str, password: str, name: str = "Platform Adm
         await seed_plans(db)
         u = (await db.execute(select(User).where(User.email == email))).scalar_one_or_none()
         if u is None:
-            u = User(email=email, name=name, password_hash=hash_password(password), locale="en", is_superadmin=True)
+            u = User(email=email, name=name, password_hash=hash_password(password), locale="en", is_superadmin=True,
+                     email_verified_at=clock.utcnow())
             db.add(u)
             await db.flush()
             t = await create_tenant(db, "Syriana Platform", "home", None, "pro", "en")
@@ -47,7 +48,8 @@ async def seed_demo(speed: float = 1.0, backfill_hours: int = 24) -> str:
         await seed_plans(db)
         u = (await db.execute(select(User).where(User.email == DEMO_EMAIL))).scalar_one_or_none()
         if u is None:
-            u = User(email=DEMO_EMAIL, name="Demo User", password_hash=hash_password(DEMO_PASSWORD), locale="ar")
+            u = User(email=DEMO_EMAIL, name="Demo User", password_hash=hash_password(DEMO_PASSWORD), locale="ar",
+                     email_verified_at=clock.utcnow())
             db.add(u)
             await db.flush()
             t = await create_tenant(db, "Demo Home", "home", None, "pro", "ar")

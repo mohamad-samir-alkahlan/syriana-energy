@@ -17,9 +17,10 @@ from app.db import get_db
 from app.deps import COOKIE, Principal, current_principal, parse_uuid, role_in_tenant, user_only
 from app.errors import err
 from app.models import AuthSession, Membership, Tenant, User
-from app.security import (DUMMY_HASH, SESSION_DAYS, create_jwt, decrypt_str, encrypt_str, hash_password_async,
+from app.security import (DUMMY_HASH, SESSION_DAYS, create_email_token, create_jwt, decode_email_token, decrypt_str,
+                          email_token_matches, encrypt_str, hash_password_async,
                           new_totp_secret, totp_url, verify_password_async, verify_totp)
-from app.services import control
+from app.services import control, notify
 from app.services.tenants import create_tenant, tenant_out
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -43,6 +44,20 @@ class SwitchIn(BaseModel):
     tenant_id: str
 
 
+class ForgotIn(BaseModel):
+    email: EmailStr
+    locale: Literal["ar", "en"] | None = None
+
+
+class ResetIn(BaseModel):
+    token: str = Field(max_length=2000)
+    password: str = Field(min_length=8, max_length=128)
+
+
+class TokenIn(BaseModel):
+    token: str = Field(max_length=2000)
+
+
 class CodeIn(BaseModel):
     code: str
 
@@ -64,7 +79,26 @@ def client_ip(request: Request) -> str:
 
 def user_out(u: User) -> dict:
     return {"id": str(u.id), "email": u.email, "name": u.name, "locale": u.locale, "is_superadmin": u.is_superadmin,
-            "totp_enabled": u.totp_enabled}
+            "totp_enabled": u.totp_enabled, "email_verified": u.email_verified_at is not None}
+
+
+LINK_MAIL = {
+    "verify": {"ar": ("تأكيد بريدك في سيريانا إنرجي", "مرحباً {name}،\n\nلتأكيد بريدك افتح الرابط:\n{link}\n\nالرابط صالح 3 أيام."),
+               "en": ("Confirm your Syriana Energy e-mail", "Hi {name},\n\nConfirm your e-mail by opening:\n{link}\n\nThe link is valid for 3 days.")},
+    "reset": {"ar": ("استعادة كلمة السر في سيريانا إنرجي", "مرحباً {name}،\n\nلتعيين كلمة سر جديدة افتح الرابط:\n{link}\n\n"
+                     "الرابط صالح ساعة واحدة. إن لم تطلب ذلك فتجاهل هذه الرسالة."),
+              "en": ("Reset your Syriana Energy password", "Hi {name},\n\nSet a new password here:\n{link}\n\n"
+                     "The link is valid for one hour. If you did not ask for this, ignore this e-mail.")},
+}
+
+
+async def send_link_mail(u: User, purpose: Literal["verify", "reset"], locale: str | None = None) -> bool:
+    lang = locale or (u.locale if u.locale in ("ar", "en") else "ar")
+    token = create_email_token(purpose, u.id, u.email, u.password_hash, 72 if purpose == "verify" else 1)
+    page = "verify-email" if purpose == "verify" else "reset-password"
+    link = f"{settings.public_base_url.rstrip('/')}/{lang}/{page}?token={token}"
+    subject, body = LINK_MAIL[purpose][lang]
+    return await notify.transports.email(u.email, subject, body.format(name=u.name, link=link))
 
 
 async def me_out(db: AsyncSession, user: User, tenant: Tenant, role: str) -> dict:
@@ -104,6 +138,7 @@ async def register(body: RegisterIn, request: Request, response: Response, db: A
     await db.flush()
     await start_session(db, response, user, tenant)
     await control.audit(db, None, "auth.register", email, tenant_id=tenant.id)
+    await send_link_mail(user, "verify")
     return await me_out(db, user, tenant, "owner")
 
 
@@ -130,12 +165,57 @@ async def login(body: LoginIn, request: Request, response: Response, db: AsyncSe
             raise err(401, "invalid_totp")
     await limiter.reset(key)
     m = (await db.execute(select(Tenant, Membership.role).join(Membership, Membership.tenant_id == Tenant.id)
-                          .where(Membership.user_id == user.id).order_by(Tenant.created_at).limit(1))).first()
+                          .where(Membership.user_id == user.id)
+                          .order_by(Tenant.suspended, Tenant.created_at).limit(1))).first()
     if m is None:
         raise err(403, "forbidden", "User has no tenant")
     tenant, role = m
     await start_session(db, response, user, tenant)
     return await me_out(db, user, tenant, role)
+
+
+@router.post("/password/forgot", status_code=204)
+async def forgot_password(body: ForgotIn, request: Request, db: AsyncSession = Depends(get_db, scope="function")):
+    """Always 204 (does not reveal whether the e-mail exists)."""
+    email = body.email.lower()
+    ip = client_ip(request)
+    if (await limiter.incr(f"forgot-ip:{ip}", 3600) > 10) or (await limiter.incr(f"forgot:{email}", 3600) > 3):
+        raise err(429, "rate_limited")
+    user = (await db.execute(select(User).where(User.email == email))).scalar_one_or_none()
+    if user is not None:
+        await send_link_mail(user, "reset", body.locale)
+        await control.audit(db, None, "auth.password_reset_requested", str(user.id))
+
+
+@router.post("/password/reset", status_code=204)
+async def reset_password(body: ResetIn, db: AsyncSession = Depends(get_db, scope="function")):
+    c = decode_email_token(body.token, "reset")
+    user = await db.get(User, parse_uuid(c["sub"])) if c else None
+    if user is None or not email_token_matches(c, user.email, user.password_hash):
+        raise err(400, "invalid_token")
+    user.password_hash = await hash_password_async(body.password)
+    user.email_verified_at = user.email_verified_at or clock.utcnow()  # the link proved the mailbox
+    await db.execute(delete(AuthSession).where(AuthSession.user_id == user.id))
+    await limiter.reset(f"login-user:{user.email}")
+    await control.audit(db, None, "auth.password_reset", str(user.id))
+
+
+@router.post("/verify-email", status_code=204)
+async def verify_email(body: TokenIn, db: AsyncSession = Depends(get_db, scope="function")):
+    c = decode_email_token(body.token, "verify")
+    user = await db.get(User, parse_uuid(c["sub"])) if c else None
+    if user is None or not email_token_matches(c, user.email, user.password_hash):
+        raise err(400, "invalid_token")
+    user.email_verified_at = user.email_verified_at or clock.utcnow()
+
+
+@router.post("/verify-email/send", status_code=204)
+async def resend_verification(p: Principal = Depends(user_only)):
+    if p.user.email_verified_at is not None:
+        return
+    if await limiter.incr(f"verify-send:{p.user.id}", 3600) > 3:
+        raise err(429, "rate_limited")
+    await send_link_mail(p.user, "verify")
 
 
 @router.post("/logout", status_code=204)

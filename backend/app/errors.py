@@ -19,6 +19,7 @@ CATALOG: dict[str, tuple[str, str]] = {
     "plan_limit": ("Your plan's device limit has been reached", "وصلت للحد الأقصى للأجهزة في باقتك"),
     "not_found": ("Not found", "غير موجود"),
     "email_taken": ("Email already registered", "البريد مسجّل مسبقاً"),
+    "invalid_token": ("This link is invalid or has expired", "الرابط غير صالح أو منتهي الصلاحية"),
     "validation_error": ("Invalid request", "طلب غير صالح"),
     "confirm_required": ("Confirmation required: send confirm=true", "يلزم التأكيد: أرسل confirm=true"),
     "unsafe_value": ("Value is outside the safe range", "القيمة خارج الحدود الآمنة"),

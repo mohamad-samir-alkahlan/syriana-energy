@@ -94,6 +94,7 @@ export interface Me {
     locale: Locale;
     is_superadmin: boolean;
     totp_enabled: boolean;
+    email_verified?: boolean;
   };
   tenant: Tenant;
   role: "owner" | "admin" | "viewer";
@@ -375,6 +376,10 @@ export const api = {
   login: (b: { email: string; password: string; totp_code?: string }) => request<Me>("/auth/login", j(b)),
   logout: () => request<void>("/auth/logout", { method: "POST" }),
   me: () => request<Me>("/auth/me"),
+  forgotPassword: (email: string, locale: Locale) => request<void>("/auth/password/forgot", j({ email, locale })),
+  resetPassword: (token: string, password: string) => request<void>("/auth/password/reset", j({ token, password })),
+  verifyEmail: (token: string) => request<void>("/auth/verify-email", j({ token })),
+  resendVerification: () => request<void>("/auth/verify-email/send", { method: "POST" }),
   switchTenant: (tenant_id: string) => request<Me>("/auth/switch-tenant", j({ tenant_id })),
   totpSetup: () => request<{ secret: string; otpauth_url: string }>("/auth/totp/setup", { method: "POST" }),
   totpEnable: (code: string) => request<unknown>("/auth/totp/enable", j({ code })),

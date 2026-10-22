@@ -3,16 +3,16 @@ name: syriana-energy
 
 x-backend-env: &backend-env
   APP_ENV: ${APP_ENV:-production}
-  DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-se}:${POSTGRES_PASSWORD:-se}@db:5432/${POSTGRES_DB:-syriana_energy}
+  DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-se}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-syriana_energy}
   REDIS_URL: redis://redis:6379/0
 
 services:
   db:
-    image: timescale/timescaledb:latest-pg16
+    image: timescale/timescaledb:2.31.0-pg16
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-se}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-se}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: ${POSTGRES_DB:-syriana_energy}
     volumes:
       - pgdata:/var/lib/postgresql/data

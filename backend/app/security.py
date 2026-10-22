@@ -62,6 +62,34 @@ def decode_jwt(token: str) -> dict[str, Any] | None:
         return None
 
 
+def _pw_fingerprint(password_hash: str) -> str:
+    return hashlib.sha256(password_hash.encode()).hexdigest()[:16]
+
+
+def create_email_token(purpose: str, user_id: uuid.UUID, email: str, password_hash: str, hours: int) -> str:
+    """Signed link token. 'reset' tokens embed a fingerprint of the current password hash,
+    so they stop working once the password changes (single use without a table)."""
+    claims: dict[str, Any] = {"sub": str(user_id), "purpose": purpose, "email": email,
+                              "exp": datetime.now(timezone.utc) + timedelta(hours=hours)}
+    if purpose == "reset":
+        claims["pw"] = _pw_fingerprint(password_hash)
+    return jwt.encode(claims, settings.jwt_secret, algorithm="HS256")
+
+
+def decode_email_token(token: str, purpose: str) -> dict[str, Any] | None:
+    try:
+        c = jwt.decode(token, settings.jwt_secret, algorithms=["HS256"], options={"require": ["exp", "sub", "purpose"]})
+    except jwt.PyJWTError:
+        return None
+    return c if c.get("purpose") == purpose else None
+
+
+def email_token_matches(claims: dict[str, Any], email: str, password_hash: str) -> bool:
+    if claims.get("email") != email:
+        return False
+    return claims.get("purpose") != "reset" or claims.get("pw") == _pw_fingerprint(password_hash)
+
+
 @lru_cache(maxsize=4)
 def _fernet_for(key: str, jwt_secret: str) -> Fernet:
     if key:

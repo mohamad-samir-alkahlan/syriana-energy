@@ -45,6 +45,32 @@ export function AppShell({ children }: { children: ReactNode }) {
   );
 }
 
+function VerifyBanner() {
+  const t = useTranslations("shell");
+  const [state, setState] = useState<"" | "busy" | "sent" | "error">("");
+  const resend = async () => {
+    setState("busy");
+    try {
+      await api.resendVerification();
+      setState("sent");
+    } catch {
+      setState("error");
+    }
+  };
+  return (
+    <div role="status" className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-bg2 px-4 py-3 text-sm">
+      <span>{t("verify_banner")}</span>
+      {state === "sent" ? (
+        <span className="text-muted">{t("verify_resent")}</span>
+      ) : (
+        <button className="text-accent" disabled={state === "busy"} onClick={resend}>
+          {t("verify_resend")}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function Shell({ children }: { children: ReactNode }) {
   const { me } = useMe();
   const t = useTranslations("nav");
@@ -90,7 +116,10 @@ function Shell({ children }: { children: ReactNode }) {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar onMenu={() => setSheet(true)} />
-        <main className="mx-auto w-full max-w-[1240px] flex-1 px-4 pb-28 pt-4 sm:px-5 md:pb-10">{children}</main>
+        <main className="mx-auto w-full max-w-[1240px] flex-1 px-4 pb-28 pt-4 sm:px-5 md:pb-10">
+          {me.user.email_verified === false && <VerifyBanner />}
+          {children}
+        </main>
       </div>
 
       {/* mobile bottom nav */}

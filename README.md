@@ -25,8 +25,11 @@ docker compose exec api python -m app.cli seed-plans
 docker compose exec api python -m app.cli create-superadmin --email you@example.com --password '...'
 docker compose exec api python -m app.cli seed-demo        # اختياري: حساب تجريبي
 ```
-- الواجهة على المنفذ 3000. ضع أمامها Cloudflare أو Coolify proxy مع HTTPS.
-- التوثيق التفاعلي للـ API على `/api/docs`، و MCP على `/mcp` (يحتاج مفتاح API).
+- الواجهة على المنفذ 3000. **لا تفتحها للعامة بدون HTTPS**: ضع أمامها Cloudflare أو Coolify proxy
+  (الكوكي `Secure`)، واضبط `CLIENT_IP_HEADER` على ترويسة الـ IP الحقيقي (`cf-connecting-ip` خلف Cloudflare).
+- على سيرفر devbox: `docker compose -f docker-compose.yml -f docker-compose.devbox.yml up -d --build` (energy.syriana.dev).
+- التوثيق التفاعلي للـ API على `/api/docs` (مطفأ في الإنتاج إلا مع `API_DOCS=true`)، و MCP على `/mcp` (يحتاج مفتاح API).
+- استعادة كلمة السر وتأكيد البريد تحتاجان `SMTP_*`.
 - `BACKEND_URL` للواجهة يُثبَّت وقت البناء، والـ compose يمرّره تلقائياً.
 
 ## ربط إنفرتر WatchPower / SmartESS
@@ -42,11 +45,12 @@ docker compose exec api python -m app.cli seed-demo        # اختياري: ح�
 
 ## التطوير والاختبارات
 ```bash
-cd backend && pip install -r requirements-dev.txt && alembic upgrade head && python -m pytest -q   # 104 اختبار
+cd backend && pip install -r requirements-dev.txt && alembic upgrade head && python -m pytest -q   # 116 اختبار
 cd frontend && npm ci && npm run build && npm run lint
 # اختبارات النظام كاملاً: انظر e2e/README.md (78 اختبار)
 ```
 
 ## ما لم يُجرَّب بعد على الواقع
+- الاتصال بسيرفر ShineMonitor ما زال `http` (غير مشفّر)؛ مؤجَّل حتى نقرّر توجيهه عبر سيرفراتنا.
 - الاتصال بسيرفر ShineMonitor بحساب حقيقي. التوقيع وأسماء الأوامر مأخوذة من التطبيق نفسه، لكن شكل بعض الردود مفترض، وأداة الـ probe موجودة للتحقق منه.
 - بوت تلغرام الحقيقي، و SMTP، ومفتاح Claude، و TimescaleDB، و Docker. كلها مختبرة بمحاكاة فقط.

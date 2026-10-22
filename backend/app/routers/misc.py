@@ -160,7 +160,8 @@ async def odoo_webhook(body: OdooIn, x_odoo_secret: str | None = Header(default=
     elif body.email:
         tenant = (await db.execute(
             select(Tenant).join(Membership, Membership.tenant_id == Tenant.id).join(User, User.id == Membership.user_id)
-            .where(User.email == body.email.lower(), Membership.role == "owner", Tenant.parent_id.is_(None))
+            .where(User.email == body.email.lower(), User.email_verified_at.is_not(None),  # no squatted e-mails
+                   Membership.role == "owner", Tenant.parent_id.is_(None))
             .order_by(Tenant.created_at).limit(1))).scalar_one_or_none()
     else:
         raise err(422, "validation_error", "tenant_id or email is required")

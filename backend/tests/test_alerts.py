@@ -117,6 +117,7 @@ async def test_arabic_owner_gets_arabic_telegram(client, fake):
 
 async def test_email_and_webhook_channels_follow_plan(client, fake):
     me, dev = await setup(client, "home")
+    fake.emails.clear()  # drop the sign-up confirmation mail
     r = await client.patch("/api/channels", json={"email": {"enabled": True, "address": "owner@example.com"}})
     assert r.status_code == 200 and r.json()["email"] == {"enabled": True, "address": "owner@example.com"}
     assert (await client.patch("/api/channels", json={"webhook": {"enabled": True, "url": "http://127.0.0.1/hook"}})).status_code == 422

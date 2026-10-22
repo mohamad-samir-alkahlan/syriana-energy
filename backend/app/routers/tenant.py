@@ -16,7 +16,7 @@ from app.db import get_db
 from app.deps import (Principal, current_principal, get_scoped, parse_uuid, require_feature, require_roles,
                       require_user_roles, user_only)
 from app.errors import err
-from app.models import Device, Membership, Tenant, User
+from app.models import ApiKey, Device, Membership, Tenant, User
 from app.security import hash_password
 from app.services import control
 from app.services.tenants import (DOMAIN, HEX, create_tenant, device_count, family_device_count, tenant_out, valid_tz)
@@ -243,9 +243,16 @@ async def patch_user(uid: str, body: RolePatch, p: Principal = Depends(require_u
         raise err(403, "forbidden", "Only an owner can change owner roles")
     if m.role == "owner" and body.role != "owner" and await _owner_count(db, p.tenant.id) <= 1:
         raise err(409, "last_owner")
+    if body.role not in ("owner", "admin"):
+        await _revoke_keys(db, p.tenant.id, u.id)
     m.role = body.role
     await control.audit(db, None, "user.role", str(u.id), {"role": body.role}, tenant_id=p.tenant.id)
     return _member_out(u, m.role)
+
+
+async def _revoke_keys(db: AsyncSession, tenant_id, user_id) -> None:
+    """API keys act as admin; they must not outlive their creator's admin rights in this tenant."""
+    await db.execute(delete(ApiKey).where(ApiKey.tenant_id == tenant_id, ApiKey.user_id == user_id))
 
 
 @router.delete("/users/{uid}", status_code=204)
@@ -256,6 +263,7 @@ async def delete_user(uid: str, p: Principal = Depends(require_user_roles("owner
     if m.role == "owner" and (p.role != "owner" or await _owner_count(db, p.tenant.id) <= 1):
         raise err(409, "last_owner") if p.role == "owner" else err(403, "forbidden")
     await db.delete(m)
+    await _revoke_keys(db, p.tenant.id, u.id)
     others = (await db.execute(select(func.count()).select_from(Membership).where(
         Membership.user_id == u.id, Membership.tenant_id != p.tenant.id))).scalar_one()
     if others == 0 and not u.is_superadmin:

@@ -51,8 +51,9 @@ def create_api() -> tuple[FastAPI, Dispatcher]:
             yield
         dispatcher.mcp_gateway = None
 
-    api = FastAPI(title="Syriana Energy API", version=VERSION, docs_url="/api/docs", redoc_url=None,
-                  openapi_url="/api/openapi.json", lifespan=lifespan,
+    docs = settings.api_docs if settings.api_docs is not None else settings.app_env != "production"
+    api = FastAPI(title="Syriana Energy API", version=VERSION, docs_url="/api/docs" if docs else None, redoc_url=None,
+                  openapi_url="/api/openapi.json" if docs else None, lifespan=lifespan,
                   description="Multi-tenant solar monitoring & control. MCP is served at /mcp (Bearer API key).")
     install_handlers(api)
     for r in (misc.public, auth.router, tenant.router, devices.router, alerts.router, automations.router,

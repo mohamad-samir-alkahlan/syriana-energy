@@ -60,7 +60,10 @@
     "no_alerts": "No alerts",
     "all_alerts": "All alerts",
     "switch_tenant": "Switch account",
-    "switch_failed": "Could not switch account"
+    "switch_failed": "Could not switch account",
+    "verify_banner": "Your e-mail is not confirmed yet. Open the link we sent you.",
+    "verify_resend": "Resend",
+    "verify_resent": "We sent the link again"
   },
   "features": {
     "control": "Inverter control",
@@ -238,7 +241,21 @@
     "totp_sub": "Enter the 6-digit code from your authenticator app.",
     "totp_code": "Verification code",
     "verify": "Verify",
-    "back": "Back"
+    "back": "Back",
+    "forgot_link": "Forgot your password?",
+    "forgot_title": "Reset your password",
+    "forgot_sub": "Enter your e-mail and we will send you a link to set a new password.",
+    "forgot_send": "Send link",
+    "forgot_sent": "If that e-mail is registered, a message is on its way. The link is valid for one hour.",
+    "back_to_login": "Back to sign in",
+    "reset_title": "New password",
+    "new_password": "New password",
+    "reset_save": "Save password",
+    "reset_done": "Your password was changed. Sign in with it now.",
+    "link_invalid": "This link is invalid or has expired.",
+    "verify_title": "Confirm e-mail",
+    "verify_busy": "Confirming…",
+    "verify_done": "Your e-mail is confirmed. Thank you."
   },
   "history": {
     "eyebrow": "History",

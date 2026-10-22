@@ -48,7 +48,8 @@ class Settings(BaseSettings):
     reserved_domains: str = ""
     assistant_hourly_limit: int = 30  # AI chat requests per tenant per hour
     assistant_daily_limit: int = 200  # AI chat requests per tenant per day
-    retention_grace_days: int = 30  # keep readings this long past the plan window (late renewals)
+    retention_grace_days: int = 30
+    api_docs: bool | None = None  # /api/docs + openapi.json; default: on except in production  # keep readings this long past the plan window (late renewals)
 
     @field_validator("jwt_secret")
     @classmethod
