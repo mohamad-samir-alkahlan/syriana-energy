@@ -65,7 +65,7 @@ async def test_login_rate_limit_per_account_across_ips(client, monkeypatch):
     monkeypatch.setattr(settings, "client_ip_header", "cf-connecting-ip")
     await register(client, "acct@example.com")
     client.cookies.clear()
-    for i in range(24):  # 8 per ip, 3x8 per account
+    for i in range(40):  # 8 per ip, 5x8 per account
         r = await client.post("/api/auth/login", json={"email": "acct@example.com", "password": "bad-password"},
                               headers={"cf-connecting-ip": f"10.1.{i // 8}.1"})
         assert r.status_code == 401, i

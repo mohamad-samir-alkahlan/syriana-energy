@@ -5,7 +5,7 @@ import uuid
 from datetime import timedelta
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, Request, Response
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -147,23 +147,25 @@ async def login(body: LoginIn, request: Request, response: Response, db: AsyncSe
     ip = client_ip(request)
     email = body.email.lower()
     key, ip_key, user_key = f"login:{ip}:{email}", f"login-ip:{ip}", f"login-user:{email}"
-    if (await limiter.count(key) >= settings.login_rate_limit or await limiter.count(ip_key) >= settings.login_rate_limit * 5
-            or await limiter.count(user_key) >= settings.login_rate_limit * 3):
+    # count the attempt BEFORE checking the password: parallel bursts cannot all slip under the limit
+    win, lim = settings.login_rate_window, settings.login_rate_limit
+    n_key, n_ip, n_user = (await limiter.incr(key, win), await limiter.incr(ip_key, win), await limiter.incr(user_key, win))
+    # per-account cap is loose (5x): it stops distributed guessing without letting 3 IPs lock a victim out
+    if n_key > lim or n_ip > lim * 5 or n_user > lim * 5:
         raise err(429, "rate_limited")
     user = (await db.execute(select(User).where(User.email == email))).scalar_one_or_none()
     ok = await verify_password_async(user.password_hash if user else DUMMY_HASH, body.password)
     if not user or not ok:
-        for k in (key, ip_key, user_key):
-            await limiter.incr(k, settings.login_rate_window)
         raise err(401, "invalid_credentials")
     if user.totp_enabled:
         if not body.totp_code:
+            await limiter.reset(key)
+            await limiter.reset(user_key)
             raise err(401, "totp_required")
         if not user.totp_secret_enc or not verify_totp(decrypt_str(user.totp_secret_enc), body.totp_code):
-            for k in (key, ip_key, user_key):
-                await limiter.incr(k, settings.login_rate_window)
             raise err(401, "invalid_totp")
     await limiter.reset(key)
+    await limiter.reset(user_key)
     m = (await db.execute(select(Tenant, Membership.role).join(Membership, Membership.tenant_id == Tenant.id)
                           .where(Membership.user_id == user.id)
                           .order_by(Tenant.suspended, Tenant.created_at).limit(1))).first()
@@ -175,15 +177,17 @@ async def login(body: LoginIn, request: Request, response: Response, db: AsyncSe
 
 
 @router.post("/password/forgot", status_code=204)
-async def forgot_password(body: ForgotIn, request: Request, db: AsyncSession = Depends(get_db, scope="function")):
-    """Always 204 (does not reveal whether the e-mail exists)."""
+async def forgot_password(body: ForgotIn, request: Request, background: BackgroundTasks,
+                          db: AsyncSession = Depends(get_db, scope="function")):
+    """Always 204 and the same timing (the mail goes out in the background), so it does not reveal accounts."""
     email = body.email.lower()
     ip = client_ip(request)
-    if (await limiter.incr(f"forgot-ip:{ip}", 3600) > 10) or (await limiter.incr(f"forgot:{email}", 3600) > 3):
+    if (await limiter.incr(f"forgot-ip:{ip}", 3600) > 10 or await limiter.incr(f"forgot:{ip}:{email}", 3600) > 3
+            or await limiter.incr(f"forgot:{email}", 3600) > 10):
         raise err(429, "rate_limited")
     user = (await db.execute(select(User).where(User.email == email))).scalar_one_or_none()
     if user is not None:
-        await send_link_mail(user, "reset", body.locale)
+        background.add_task(send_link_mail, user, "reset", body.locale)
         await control.audit(db, None, "auth.password_reset_requested", str(user.id))
 
 

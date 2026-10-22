@@ -252,7 +252,11 @@ async def patch_user(uid: str, body: RolePatch, p: Principal = Depends(require_u
 
 async def _revoke_keys(db: AsyncSession, tenant_id, user_id) -> None:
     """API keys act as admin; they must not outlive their creator's admin rights in this tenant."""
-    await db.execute(delete(ApiKey).where(ApiKey.tenant_id == tenant_id, ApiKey.user_id == user_id))
+    # also keys they minted inside customer tenants they reached through this (installer) membership
+    children = select(Tenant.id).where(Tenant.parent_id == tenant_id, ~Tenant.id.in_(
+        select(Membership.tenant_id).where(Membership.user_id == user_id)))
+    await db.execute(delete(ApiKey).where(ApiKey.user_id == user_id,
+                                          (ApiKey.tenant_id == tenant_id) | ApiKey.tenant_id.in_(children)))
 
 
 @router.delete("/users/{uid}", status_code=204)

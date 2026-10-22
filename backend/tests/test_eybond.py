@@ -265,3 +265,38 @@ def test_expiry_parsing():
     assert eb._expiry_to_unix(3600, 1000.0) == 4600.0
     assert eb._expiry_to_unix(1_800_000_000, 1000.0) == 1_800_000_000
     assert eb._expiry_to_unix(1_800_000_000_000, 1000.0) == 1_800_000_000
+
+
+LIVE_2451_FIELDS = {  # webQueryDeviceCtrlField names from a real devcode 2451 inverter (2026-10-22) -> expected key
+    "Output Source Priority": "output_priority", "AC Input Range": "ac_input_range", "Output Voltage": None,
+    "Output Frequency": None, "Battery Type": None, "Bulk Charging Voltage": "bulk_charge_voltage",
+    "Float Charging Voltage": "float_charge_voltage", "Max. Charging Current": "max_charge_current",
+    "Max. AC Charging Current": "max_ac_charge_current", "Charging Source Priority": "charger_priority",
+    "Battery Equalization": None, "Real-time Activate Battery Equalization": None,
+    "Battery Equalization Time Out": None, "Battery Equalization Time": None, "Equalization Period": None,
+    "Equalization Voltage": None, "LCD Auto-return to Main Screen": "lcd_auto_return",
+    "Overload Auto Restart": "overload_restart", "Buzzer": "buzzer", "Fault Code Record": None, "Backlight": "backlight",
+    "Bypass Function": None, "Solar Feed To Grid": None, "Beeps While Primary Source Interrupt": "primary_source_beep",
+    "Over Temperature Auto Restart": "overtemp_restart", "Restore To Default": None,
+    "Power Saving Function": "power_saving", "LED Status": None, "LED Brightness": None, "LED Color 1": None,
+    "Back to Grid Capacity": "battery_recharge_soc", "Back to Discharge Capacity": "battery_redischarge_soc",
+    "Battery Cut-off Capacity": "battery_cutoff_soc", "Battery Capacity to Turn Off AC2": "ac2_off_soc",
+    "Discharge Time to Turn Off AC2": None, "Time Interval to Turn On AC2": None, "Time Interval to Turn Off AC2": None,
+    "Charge Time to Turn On AC2": None, "Battery Capacity to Turn On AC2": "ac2_on_soc",
+}
+
+
+def test_live_2451_fields_map_to_safe_settings_only():
+    from app.drivers.eybond_cloud import match_safe_field
+    got = {n: (sf.key if (sf := match_safe_field(n)) else None) for n in LIVE_2451_FIELDS}
+    assert got == LIVE_2451_FIELDS
+    keys = [k for k in got.values() if k]
+    assert len(keys) == len(set(keys))  # one vendor field per setting key
+
+
+def test_soc_enum_hides_unsafe_options():
+    from app.drivers.eybond_cloud import build_setting, match_safe_field
+    field = {"name": "Battery Cut-off Capacity", "item": [{"key": "000", "val": "0"}, {"key": "005", "val": "5"},
+                                                          {"key": "020", "val": "20"}]}
+    sd = build_setting(field, match_safe_field(field["name"]), "020", 24)
+    assert [o["value"] for o in sd.options] == ["005", "020"] and sd.value == "020"

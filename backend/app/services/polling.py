@@ -23,7 +23,8 @@ log = logging.getLogger(__name__)
 READ_TIMEOUT = 45
 
 
-async def poll_device(db: AsyncSession, device_id: uuid.UUID, now: datetime | None = None) -> dict[str, Any] | None:
+async def poll_device(db: AsyncSession, device_id: uuid.UUID, now: datetime | None = None,
+                      commit: bool = False) -> dict[str, Any] | None:
     # row lock: serializes with control commands so driver state (settings) is never overwritten by a stale copy
     device = (await db.execute(select(Device).where(Device.id == device_id).with_for_update())).scalar_one_or_none()
     if device is None:
@@ -57,7 +58,10 @@ async def poll_device(db: AsyncSession, device_id: uuid.UUID, now: datetime | No
     device.state, device.online, device.last_error = dict(ctx.state), True, None
     # release the device row lock before alerts/automations make network calls (telegram, smtp, webhooks),
     # so control commands are not stuck behind slow notification channels
-    await db.commit()
+    if commit:  # worker: free the lock now; request handlers keep their single transaction
+        await db.commit()
+    else:
+        await db.flush()
 
     tenant = await db.get(Tenant, device.tenant_id)
     plan = await effective_plan(db, tenant)

@@ -80,7 +80,7 @@ services:
     environment:
       BACKEND_URL: http://api:8000
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"   # only the local reverse proxy / tunnel may reach it
     depends_on:
       api: {condition: service_healthy}
     healthcheck:

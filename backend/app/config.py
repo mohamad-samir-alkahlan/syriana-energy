@@ -79,6 +79,9 @@ class Settings(BaseSettings):
             problems.append("JWT_SECRET must be set to a random string of at least 32 chars")
         if not self.credentials_key:
             problems.append("CREDENTIALS_KEY must be set (Fernet key)")
+        if not self.client_ip_header:
+            # every request reaches the API through the Next.js proxy, so the peer address is useless
+            problems.append("CLIENT_IP_HEADER must be set (e.g. cf-connecting-ip behind Cloudflare)")
         if problems:
             raise RuntimeError("Insecure production configuration: " + "; ".join(problems))
 

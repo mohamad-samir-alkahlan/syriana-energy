@@ -433,18 +433,42 @@ class SafeField:
     # (min, max, step) for a 24V system; voltage ranges are scaled by nominal/24
     safe: tuple[float, float, float] | None = None
     scale_with_voltage: bool = False
+    min_option: float | None = None  # enum: hide device options below this (e.g. 0 % battery cut-off)
 
 
 SAFE_FIELDS: list[SafeField] = [
     SafeField(r"output\s*source\s*priority|output\s*priority", "output_priority", "Output source priority",
               "أولوية مصدر الخرج", "output"),
-    SafeField(r"charger\s*source\s*priority|charge\w*\s*priority", "charger_priority", "Charger source priority",
+    SafeField(r"charg\w*\s*(source\s*)?priority", "charger_priority", "Charger source priority",
               "أولوية مصدر الشحن", "charging"),
     SafeField(r"max\w*\.?\s*(ac|utility|grid|mains)\s*charg\w*\s*current", "max_ac_charge_current",
               "Max AC charging current", "أقصى تيار شحن من الشبكة", "charging", "A", (2, 60, 1)),
     SafeField(r"^max\w*\.?\s*charg\w*\s*current", "max_charge_current", "Max charging current",
               "أقصى تيار شحن", "charging", "A", (2, 120, 1)),
-    SafeField(r"buzzer|alarm\s*control|beeps?", "buzzer", "Buzzer", "الصافرة", "general"),
+    # [VERIFIED 2026-10-22, devcode 2451] the rest of this list matches the field names that inverter offers
+    SafeField(r"beeps?\s*while|primary\s*source\s*(alarm|interrupt)", "primary_source_beep",
+              "Beep when the primary source is interrupted", "صوت عند انقطاع المصدر الأساسي", "general"),
+    SafeField(r"buzzer|alarm\s*control|^beeps?$", "buzzer", "Buzzer", "الصافرة", "general"),
+    SafeField(r"ac\s*input\s*range", "ac_input_range", "AC input range (Appliance / UPS)", "مدى دخل الشبكة (أجهزة / UPS)",
+              "output"),
+    SafeField(r"overload\s*auto\s*restart", "overload_restart", "Overload auto restart", "إعادة التشغيل بعد الحمل الزائد",
+              "general"),
+    SafeField(r"temperature\s*auto\s*restart", "overtemp_restart", "Over-temperature auto restart",
+              "إعادة التشغيل بعد ارتفاع الحرارة", "general"),
+    SafeField(r"power\s*saving", "power_saving", "Power saving", "توفير الطاقة", "general"),
+    SafeField(r"backlight", "backlight", "LCD backlight", "إضاءة الشاشة", "general"),
+    SafeField(r"lcd\s*auto.?return", "lcd_auto_return", "LCD returns to main screen", "عودة الشاشة للواجهة الرئيسية",
+              "general"),
+    SafeField(r"back\s*to\s*grid\s*capacity", "battery_recharge_soc", "Back to grid at battery %",
+              "العودة للشبكة عند نسبة البطارية", "battery", "%", min_option=5),
+    SafeField(r"back\s*to\s*discharge\s*capacity", "battery_redischarge_soc", "Back to battery at battery %",
+              "العودة للبطارية عند نسبة البطارية", "battery", "%", min_option=10),
+    SafeField(r"cut.?off\s*capacity", "battery_cutoff_soc", "Battery cut-off %", "نسبة قطع البطارية", "battery", "%",
+              min_option=5),
+    SafeField(r"capacity\s*to\s*turn\s*off\s*ac2", "ac2_off_soc", "Turn AC2 off at battery %",
+              "إطفاء المخرج الثاني عند نسبة البطارية", "output", "%"),
+    SafeField(r"capacity\s*to\s*turn\s*on\s*ac2", "ac2_on_soc", "Turn AC2 on at battery %",
+              "تشغيل المخرج الثاني عند نسبة البطارية", "output", "%"),
     SafeField(r"(battery\s*)?cut.?off\s*voltage|low\s*dc\s*cut.?off", "battery_cutoff_voltage", "Battery cut-off voltage",
               "جهد قطع البطارية", "battery", "V", (20.0, 24.0, 0.1), True),
     SafeField(r"bulk\s*charg\w*\s*voltage|constant\s*voltage|cv\s*charg\w*\s*voltage", "bulk_charge_voltage",
@@ -493,6 +517,8 @@ def build_setting(field: dict[str, Any], sf: SafeField, current: Any, nominal_v:
         opts = []
         for it in items:
             key, label = str(it.get("key")), str(it.get("val", it.get("key")))
+            if sf.min_option is not None and (to_number(label) is None or to_number(label) < sf.min_option):
+                continue
             opts.append({"value": key, "label": label, "label_ar": label})
         val = None
         if current is not None:

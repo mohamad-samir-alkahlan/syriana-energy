@@ -94,7 +94,7 @@ async def poll_scheduler(stop: asyncio.Event) -> None:
                         pass
                 async with SessionLocal() as db:
                     try:
-                        res = await polling.poll_device(db, did)
+                        res = await polling.poll_device(db, did, commit=True)
                         await db.commit()
                     except Exception:  # noqa: BLE001
                         await db.rollback()

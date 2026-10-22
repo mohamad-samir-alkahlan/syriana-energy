@@ -8,7 +8,7 @@ import logging
 import socket
 from email.message import EmailMessage
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 import httpx
 
@@ -63,6 +63,8 @@ async def safe_request(method: str, url: str, timeout: float, **kw: Any) -> http
         if u.port:
             hostport += f":{u.port}"
         target = u._replace(netloc=hostport).geturl()
+        if u.username is not None:  # user:pass@ in the URL used to become basic auth; keep that
+            kw["auth"] = (unquote(u.username), unquote(u.password or ""))
         kw["headers"] = {**kw.get("headers", {}), "Host": u.netloc.rsplit("@", 1)[-1]}
         if u.scheme == "https":
             ext["sni_hostname"] = u.hostname
