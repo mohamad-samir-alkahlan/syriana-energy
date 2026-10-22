@@ -1,0 +1,163 @@
+{
+  "err": 0,
+  "desc": "ERR_NONE",
+  "dat": {
+    "total": 1,
+    "page": 0,
+    "pagesize": 1,
+    "title": [
+      {
+        "title": "Timestamp",
+        "unit": ""
+      },
+      {
+        "title": "SN",
+        "unit": ""
+      },
+      {
+        "title": "Machine Type",
+        "unit": ""
+      },
+      {
+        "title": "Grid Voltage",
+        "unit": "V"
+      },
+      {
+        "title": "Grid Frequency",
+        "unit": "Hz"
+      },
+      {
+        "title": "PV1 Input Voltage",
+        "unit": "V"
+      },
+      {
+        "title": "PV1 Charging Power",
+        "unit": "W"
+      },
+      {
+        "title": "PV1 Input Current",
+        "unit": "A"
+      },
+      {
+        "title": "Battery Voltage",
+        "unit": "V"
+      },
+      {
+        "title": "Battery Capacity",
+        "unit": "%"
+      },
+      {
+        "title": "BUS Voltage",
+        "unit": "V"
+      },
+      {
+        "title": "Battery Voltage From SCC",
+        "unit": "V"
+      },
+      {
+        "title": "Load Status",
+        "unit": ""
+      },
+      {
+        "title": "Model",
+        "unit": ""
+      },
+      {
+        "title": "Output Source Priority",
+        "unit": ""
+      },
+      {
+        "title": "Charger Source Priority",
+        "unit": ""
+      },
+      {
+        "title": "Total generation (Wh)",
+        "unit": ""
+      },
+      {
+        "title": "Solar Feed To Grid Power",
+        "unit": "W"
+      },
+      {
+        "title": "Battery Re-Discharge Voltage",
+        "unit": "V"
+      },
+      {
+        "title": "AC Output Voltage",
+        "unit": "V"
+      },
+      {
+        "title": "AC Output Frequency",
+        "unit": "Hz"
+      },
+      {
+        "title": "AC Output Active Power",
+        "unit": "W"
+      },
+      {
+        "title": "AC Output Apparent Power",
+        "unit": "VA"
+      },
+      {
+        "title": "Output Load Percent",
+        "unit": "%"
+      },
+      {
+        "title": "Battery Charging Current",
+        "unit": "A"
+      },
+      {
+        "title": "Battery Discharge Current",
+        "unit": "A"
+      },
+      {
+        "title": "Inverter Heat Sink Temperature",
+        "unit": "℃"
+      },
+      {
+        "title": "PV2 Input Voltage",
+        "unit": "V"
+      },
+      {
+        "title": "PV2 Charging Power",
+        "unit": "W"
+      }
+    ],
+    "row": [
+      {
+        "field": [
+          "2026-10-22 10:31:05",
+          "96322507123757",
+          "Off-Grid",
+          "0.0",
+          "0.0",
+          "142.3",
+          "1180",
+          "8.3",
+          "26.8",
+          "87",
+          "398",
+          "26.9",
+          "Connected",
+          "Battery Mode",
+          "Utility Solar Bat",
+          "Solar + Utility",
+          "1234560",
+          "0",
+          "25.0",
+          "230.1",
+          "50.0",
+          "640",
+          "700",
+          "21",
+          "30",
+          "0",
+          "41",
+          "0.0",
+          "0"
+        ],
+        "realtime": true
+      }
+    ]
+  }
+}

@@ -1,0 +1,95 @@
+# Syriana Energy - production-like stack. Copy .env.example to .env and set the secrets first.
+name: syriana-energy
+
+x-backend-env: &backend-env
+  APP_ENV: ${APP_ENV:-production}
+  DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-se}:${POSTGRES_PASSWORD:-se}@db:5432/${POSTGRES_DB:-syriana_energy}
+  REDIS_URL: redis://redis:6379/0
+
+services:
+  db:
+    image: timescale/timescaledb:latest-pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-se}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-se}
+      POSTGRES_DB: ${POSTGRES_DB:-syriana_energy}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: ./backend
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment: *backend-env
+    depends_on:
+      db: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=4).status == 200 else 1)"]
+      interval: 15s
+      timeout: 5s
+      start_period: 60s
+      retries: 5
+
+  worker:
+    build: ./backend
+    restart: unless-stopped
+    command: ["python", "-m", "app.worker"]
+    env_file:
+      - path: .env
+        required: false
+    environment: *backend-env
+    depends_on:
+      api: {condition: service_healthy}   # the api container applies migrations first
+      db: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import asyncio,asyncpg,os; dsn=os.environ['DATABASE_URL'].replace('+asyncpg',''); asyncio.run(asyncpg.connect(dsn, timeout=4))"]
+      interval: 30s
+      timeout: 6s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        BACKEND_URL: http://api:8000
+    restart: unless-stopped
+    environment:
+      BACKEND_URL: http://api:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      api: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"]
+      interval: 20s
+      timeout: 6s
+      start_period: 30s
+      retries: 5
+
+volumes:
+  pgdata:
+  redisdata:

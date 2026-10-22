@@ -1,0 +1,11 @@
+{
+  "err": 0,
+  "desc": "ERR_NONE",
+  "dat": {
+    "token": "TOKEN123abc",
+    "secret": "SECRET456def",
+    "expire": 604800,
+    "role": 0,
+    "uid": 100231
+  }
+}

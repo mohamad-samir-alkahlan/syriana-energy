@@ -1,0 +1,11 @@
+node_modules/
+.next/
+frontend/.screens/
+__pycache__/
+*.pyc
+.env
+.venv/
+*.egg-info/
+.pytest_cache/
+probe*.json
+e2e/screens/

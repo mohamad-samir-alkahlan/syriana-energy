@@ -1,0 +1,7 @@
+{
+  "std_ac_out_pri": "1",
+  "std_chg_pri": "2",
+  "std_max_ac_chg": "30",
+  "std_buzzer": "1",
+  "std_cutoff": "21.0"
+}

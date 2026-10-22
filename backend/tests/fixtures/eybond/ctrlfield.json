@@ -1,0 +1,98 @@
+{
+  "err": 0,
+  "desc": "ERR_NONE",
+  "dat": {
+    "field": [
+      {
+        "id": "std_ac_out_pri",
+        "name": "Output source priority",
+        "unit": "",
+        "hint": "",
+        "item": [
+          {
+            "key": "0",
+            "val": "Utility first"
+          },
+          {
+            "key": "1",
+            "val": "Solar first"
+          },
+          {
+            "key": "2",
+            "val": "SBU priority"
+          }
+        ]
+      },
+      {
+        "id": "std_chg_pri",
+        "name": "Charger source priority",
+        "unit": "",
+        "hint": "",
+        "item": [
+          {
+            "key": "0",
+            "val": "Utility first"
+          },
+          {
+            "key": "1",
+            "val": "Solar first"
+          },
+          {
+            "key": "2",
+            "val": "Solar + Utility"
+          },
+          {
+            "key": "3",
+            "val": "Only solar"
+          }
+        ]
+      },
+      {
+        "id": "std_max_ac_chg",
+        "name": "Max. AC charging current",
+        "unit": "A",
+        "hint": "10~60"
+      },
+      {
+        "id": "std_buzzer",
+        "name": "Buzzer",
+        "unit": "",
+        "hint": "",
+        "item": [
+          {
+            "key": "0",
+            "val": "Disable"
+          },
+          {
+            "key": "1",
+            "val": "Enable"
+          }
+        ]
+      },
+      {
+        "id": "std_cutoff",
+        "name": "Battery cut-off voltage",
+        "unit": "V",
+        "hint": "18.0~26.0"
+      },
+      {
+        "id": "std_reset",
+        "name": "Restore factory defaults",
+        "unit": "",
+        "hint": "",
+        "item": [
+          {
+            "key": "1",
+            "val": "Reset"
+          }
+        ]
+      },
+      {
+        "id": "std_out_volt",
+        "name": "Output voltage",
+        "unit": "V",
+        "hint": "200~240"
+      }
+    ]
+  }
+}

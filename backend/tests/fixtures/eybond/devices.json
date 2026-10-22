@@ -1,0 +1,19 @@
+{
+  "err": 0,
+  "desc": "ERR_NONE",
+  "dat": {
+    "total": 1,
+    "page": 0,
+    "pagesize": 50,
+    "device": [
+      {
+        "pn": "W0069062760641",
+        "sn": "96322507123757",
+        "devcode": 2451,
+        "devaddr": 1,
+        "alias": "Home Inverter",
+        "status": 0
+      }
+    ]
+  }
+}

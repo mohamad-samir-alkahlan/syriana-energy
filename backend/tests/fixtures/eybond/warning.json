@@ -1,0 +1,23 @@
+{
+  "err": 0,
+  "desc": "ERR_NONE",
+  "dat": {
+    "total": 2,
+    "warning": [
+      {
+        "id": "1",
+        "code": "F07",
+        "desc": "Overload",
+        "gts": "2026-10-22 10:28:00",
+        "handle": "0"
+      },
+      {
+        "id": "2",
+        "code": "W02",
+        "desc": "Old warning",
+        "gts": "2026-10-20 08:00:00",
+        "handle": "0"
+      }
+    ]
+  }
+}

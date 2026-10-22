@@ -1,0 +1,80 @@
+{
+  "err": 0,
+  "desc": "ERR_NONE",
+  "dat": {
+    "bt_status": [
+      {
+        "par": "bt_battery_capacity",
+        "status": 0,
+        "unit": "%",
+        "val": "87"
+      },
+      {
+        "par": "bt_voltage",
+        "status": 0,
+        "unit": "V",
+        "val": "26.8"
+      },
+      {
+        "par": "bt_output_power",
+        "status": 0,
+        "unit": "W",
+        "val": "0"
+      }
+    ],
+    "bc_status": [
+      {
+        "par": "bc_pow",
+        "status": 0,
+        "unit": "kW",
+        "val": "0.64"
+      },
+      {
+        "par": "bc_per",
+        "status": 0,
+        "unit": "%",
+        "val": "21"
+      },
+      {
+        "par": "bc_vol",
+        "status": 0,
+        "unit": "V",
+        "val": "230.1"
+      },
+      {
+        "par": "bc_model",
+        "status": 0,
+        "unit": "",
+        "val": "Battery Mode"
+      }
+    ],
+    "gd_status": [
+      {
+        "par": "gd_vol",
+        "status": 0,
+        "unit": "V",
+        "val": "0.0"
+      },
+      {
+        "par": "gd_fre",
+        "status": 0,
+        "unit": "Hz",
+        "val": "0.0"
+      }
+    ],
+    "pv_status": [
+      {
+        "par": "pv_pow",
+        "status": 0,
+        "unit": "kW",
+        "val": "1.18"
+      },
+      {
+        "par": "pv_vol",
+        "status": 0,
+        "unit": "V",
+        "val": "142.3"
+      }
+    ]
+  }
+}
