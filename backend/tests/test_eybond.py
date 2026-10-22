@@ -53,6 +53,7 @@ class FakeCloud:
         self.fail_n = fail_first_n_calls
         self.written: list[tuple] = []
         self.warning = warning
+        self.paging_total = 1
         self.salt_counter = 1761127000000
 
     def salt(self):
@@ -80,7 +81,9 @@ class FakeCloud:
         if action == "webQueryDeviceEnergyFlowEs":
             return httpx.Response(200, json=fx("flow.json"))
         if action == "queryDeviceDataOneDayPaging":
-            return httpx.Response(200, json=fx("paging.json"))
+            body = fx("paging.json")
+            body["dat"]["total"] = self.paging_total
+            return httpx.Response(200, json=body)
         if action == "queryDeviceWarning":
             return httpx.Response(200, json=fx("warning.json") if self.warning else {"err": 0, "desc": "ERR_NONE", "dat": {"warning": []}})
         if action == "webQueryDeviceCtrlField":
@@ -154,6 +157,25 @@ async def test_read_maps_and_merges(cloud):
     assert actions == ["authSource", "webQueryDeviceEnergyFlowEs", "queryDeviceDataOneDayPaging", "queryDeviceWarning"]
     paging = next(q for q in cloud.calls if q.get("action") == "queryDeviceDataOneDayPaging")
     assert paging["date"] == "2026-10-22" and paging["page"] == "0" and paging["pagesize"] == "1"
+
+
+def test_map_flow_live_2451_shape():
+    from app.drivers.eybond_cloud import map_flow
+    m, _ = map_flow({"bt_status": [{"par": "bt_battery_capacity", "val": "86.0000", "unit": "%", "status": 1},
+                                   {"par": "battery_active_power", "val": "0", "status": 0}],
+                     "pv_status": [{"par": "pv_output_power", "val": "0.0140", "unit": "kW", "status": 1}],
+                     "gd_status": [{"par": "grid_active_power", "val": "0.0000", "unit": "V", "status": 0}],
+                     "bc_status": [{"par": "load_active_power", "val": "0.5740", "unit": "kW", "status": -1}]})
+    assert m == {"battery_soc": 86.0, "pv_power": pytest.approx(14.0), "load_power": pytest.approx(574.0)}
+
+
+async def test_read_uses_newest_row_of_a_busy_day(cloud):
+    # the real cloud returns rows newest first; a day has ~200 rows and the last page is midnight
+    cloud.paging_total = 201
+    drv = get_driver("eybond_cloud")
+    await drv.read(ctx())
+    pages = [q["page"] for q in cloud.calls if q.get("action") == "queryDeviceDataOneDayPaging"]
+    assert pages == ["0"]
 
 
 async def test_token_cached_and_relogin_on_error(cloud):

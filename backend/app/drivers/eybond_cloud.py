@@ -321,6 +321,8 @@ FLOW_PARS: dict[str, tuple[str, str]] = {
     "bc_pow": ("load_power", POWER), "bc_per": ("load_percent", OTHER), "bc_vol": ("output_voltage", VOLT),
     "gd_vol": ("grid_voltage", VOLT), "gd_fre": ("grid_frequency", OTHER),
     "pv_pow": ("pv_power", POWER), "pv_vol": ("pv_voltage", VOLT),
+    # [VERIFIED 2026-10-22, live devcode 2451] names the cloud actually sends (values in kW)
+    "pv_output_power": ("pv_power", POWER), "load_active_power": ("load_power", POWER),
 }
 
 
@@ -582,13 +584,10 @@ class EybondCloudDriver(Driver):
             errors.append(f"flow: {e.message}")
 
         try:
+            # [VERIFIED 2026-10-22 on a live 2451 inverter] rows come newest first: page 0 is the latest
+            # record (~5 min old) and the last page is the first record after midnight.
             page = await c.call("queryDeviceDataOneDayPaging", pn=pn, devcode=devcode, sn=sn, devaddr=devaddr,
                                 page=0, pagesize=1, date=local_date)
-            # [ASSUMED] if the day has several records `total` tells how many; the newest is the last page.
-            total = int((page or {}).get("total") or 0)
-            if total > 1:
-                page = await c.call("queryDeviceDataOneDayPaging", pn=pn, devcode=devcode, sn=sn, devaddr=devaddr,
-                                    page=total - 1, pagesize=1, date=local_date)
             rows = (page or {}).get("row") or []
             if rows:
                 items = parse_title_rows(page.get("title") or [], rows[0].get("field") or [])
