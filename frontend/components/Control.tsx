@@ -47,6 +47,22 @@ function ControlFor({ id }: { id: string }) {
     return t.has(k) ? t(k) : g;
   };
   const label = (s: Setting) => (locale === "ar" ? s.label_ar || s.label : s.label);
+  const help = (s: Setting) => {
+    const h = locale === "ar" ? s.help_ar || s.help : s.help;
+    const c = locale === "ar" ? s.caution_ar || s.caution : s.caution;
+    if (!h && !c) return null;
+    return (
+      <div className="mt-1 space-y-1 text-xs leading-relaxed">
+        {h && <p className="text-muted">{h}</p>}
+        {c && (
+          <p className="flex items-start gap-1.5 text-gold">
+            <Icon name="warn" size={13} className="mt-0.5 shrink-0" />
+            <span>{c}</span>
+          </p>
+        )}
+      </div>
+    );
+  };
   const show = (s: Setting | undefined, v: unknown): string => {
     if (v === null || v === undefined) return "—";
     if (!s) return String(v);
@@ -112,6 +128,9 @@ function ControlFor({ id }: { id: string }) {
                     </div>
                     <Switch checked={!!s.value} label={label(s)} disabled={!writable} onChange={(v) => setPending({ s, next: v })} />
                   </div>
+                ) : null}
+                {s.type === "bool" ? (
+                  help(s)
                 ) : (
                   <>
                     <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 text-sm">
@@ -120,6 +139,7 @@ function ControlFor({ id }: { id: string }) {
                         {t("current")}: <span dir="ltr" className="num">{show(s, s.value)}</span>
                       </span>
                     </div>
+                    <div className="-mt-1 mb-2">{help(s)}</div>
                     {s.type === "enum" && (
                       <Segmented
                         label={label(s)}

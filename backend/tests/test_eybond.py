@@ -300,3 +300,12 @@ def test_soc_enum_hides_unsafe_options():
                                                           {"key": "020", "val": "20"}]}
     sd = build_setting(field, match_safe_field(field["name"]), "020", 24)
     assert [o["value"] for o in sd.options] == ["005", "020"] and sd.value == "020"
+
+
+def test_every_exposed_setting_has_help():
+    from app.drivers.eybond_cloud import SAFE_FIELDS
+    from app.drivers.setting_help import SETTING_HELP
+    demo_keys = {"output_priority", "charger_priority", "max_ac_charge_current", "buzzer"}
+    missing = ({sf.key for sf in SAFE_FIELDS} | demo_keys) - set(SETTING_HELP)
+    assert not missing
+    assert all(h[0] and h[1] and bool(h[2]) == bool(h[3]) for h in SETTING_HELP.values())

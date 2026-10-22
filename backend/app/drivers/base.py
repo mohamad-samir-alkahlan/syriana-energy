@@ -67,9 +67,10 @@ class SettingDef:
     group: str = "general"
 
     def to_dict(self) -> dict[str, Any]:
+        from app.drivers.setting_help import help_for
         return {"key": self.key, "label": self.label, "label_ar": self.label_ar, "type": self.type,
                 "options": self.options, "min": self.min, "max": self.max, "step": self.step, "unit": self.unit,
-                "value": self.value, "group": self.group}
+                "value": self.value, "group": self.group, **help_for(self.key)}
 
     def validate(self, value: Any) -> Any:
         """Return the normalized value or raise ValueError (-> 422 unsafe_value)."""

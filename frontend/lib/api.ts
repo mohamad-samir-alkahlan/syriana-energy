@@ -169,6 +169,10 @@ export interface Setting {
   unit?: string | null;
   value: string | number | boolean | null;
   group?: string | null;
+  help?: string | null;
+  help_ar?: string | null;
+  caution?: string | null;
+  caution_ar?: string | null;
 }
 export interface Command {
   id: string;

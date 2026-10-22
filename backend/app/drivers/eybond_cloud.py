@@ -481,6 +481,13 @@ SAFE_FIELDS: list[SafeField] = [
               "Battery re-discharge voltage", "جهد العودة للبطارية", "battery", "V", (24.0, 29.0, 0.1), True),
 ]
 
+# vendor enum labels -> Arabic (anything else is shown as the vendor wrote it)
+OPTION_AR = {
+    "utility solar bat": "شبكة ثم شمس ثم بطارية", "solar utility bat": "شمس ثم شبكة ثم بطارية",
+    "solar bat utility": "شمس ثم بطارية ثم شبكة", "solar first": "الشمس أولاً", "solar + utility": "شمس + كهرباء",
+    "only solar charging permitted": "الشمس فقط", "enable": "تفعيل", "disable": "إيقاف", "appliance": "أجهزة منزلية",
+}
+
 _RANGE = re.compile(r"(-?\d+(?:\.\d+)?)\s*(?:~|–|—|to|…|\.\.)\s*(-?\d+(?:\.\d+)?)", re.I)
 _RANGE_DASH = re.compile(r"(?<![\d.])(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)")
 
@@ -519,7 +526,7 @@ def build_setting(field: dict[str, Any], sf: SafeField, current: Any, nominal_v:
             key, label = str(it.get("key")), str(it.get("val", it.get("key")))
             if sf.min_option is not None and (to_number(label) is None or to_number(label) < sf.min_option):
                 continue
-            opts.append({"value": key, "label": label, "label_ar": label})
+            opts.append({"value": key, "label": label, "label_ar": OPTION_AR.get(label.strip().lower(), label)})
         val = None
         if current is not None:
             cs = str(current)
